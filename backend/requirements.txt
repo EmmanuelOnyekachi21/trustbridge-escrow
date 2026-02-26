@@ -1,0 +1,14 @@
+fastapi==0.115.0               # or latest 0.11x
+uvicorn[standard]==0.34.0      # or latest
+sqlalchemy==2.0.37             # 2.0.30 → minor bumps are safe
+asyncpg==0.30.0
+alembic==1.14.0                # nice improvements
+pydantic-settings==2.7.0       # ← still needed, actively maintained
+structlog==24.4.0
+sentry-sdk[fastapi]==2.22.0    # newer
+python-dotenv==1.0.1
+httpx==0.28.0
+pytest==8.3.3
+pytest-asyncio==0.24.0
+celery==5.4.0
+redis==5.0.0
