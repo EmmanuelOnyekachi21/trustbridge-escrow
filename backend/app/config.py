@@ -16,9 +16,9 @@ class Environment(str, Enum):
     Defines valid deployment environments for the application.
     """
 
-    dev = "dev"
+    dev = "development"
     stag = "staging"
-    prod = "prod"
+    prod = "production"
 
 
 class Settings(BaseSettings):
@@ -46,6 +46,10 @@ class Settings(BaseSettings):
 
     # logging
     log_level: Literal['DEBUG', "INFO", "ERROR", "WARNING", "CRITICAL"] = "INFO"
+
+    # Firebase — one of these will be set depending on environment
+    FIREBASE_SERVICE_ACCOUNT_PATH: str | None = None
+    FIREBASE_SERVICE_ACCOUNT_JSON: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

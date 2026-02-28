@@ -85,7 +85,7 @@ def configure_logging() -> None:
         ]
     else:
         processors = shared_processors + [
-            structlog.processors.JSONRenderer
+            structlog.processors.JSONRenderer()
         ]
 
     structlog.configure(

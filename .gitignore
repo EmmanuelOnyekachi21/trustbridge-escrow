@@ -3,6 +3,10 @@
 .env.local
 .env.*.local
 
+# Firebase credentials
+trustbridge.json
+*trustbridge*.json
+
 # Alembic
 alembic/
 *.ini

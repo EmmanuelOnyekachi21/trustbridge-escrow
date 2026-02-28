@@ -16,7 +16,14 @@ from app.database import engine
 from app.logging import configure_logging, get_logger
 from app.middleware.logging import RequestTracingMiddleware
 
+from app.core.firebase import _initialize_firebase
+
+from app.api import auth
+
+
 configure_logging()
+
+_initialize_firebase()
 
 logger = get_logger(__name__)
 
@@ -57,4 +64,5 @@ app = FastAPI(
 app.add_middleware(RequestTracingMiddleware)
 
 app.include_router(health.router)
+app.include_router(auth.router, prefix='/auth')
 
