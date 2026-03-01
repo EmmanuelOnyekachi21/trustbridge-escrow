@@ -7,12 +7,18 @@ application's user management system.
 import enum
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.audit_logs import AuditLog
+    from app.models.transactions import Transaction
+    from app.models.wallets import Wallet
 
 
 class UserRole(str, enum.Enum):
@@ -80,6 +86,29 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False
+    )
+    
+    # Relationships
+    transactions_as_buyer: Mapped[List["Transaction"]] = relationship(
+        "Transaction",
+        foreign_keys="Transaction.buyer_id",
+        back_populates="buyer"
+    )
+    
+    transactions_as_vendor: Mapped[List["Transaction"]] = relationship(
+        "Transaction",
+        foreign_keys="Transaction.vendor_id",
+        back_populates="vendor"
+    )
+    
+    wallets: Mapped[List["Wallet"]] = relationship(
+        "Wallet",
+        back_populates="user"
+    )
+    
+    audit_logs: Mapped[List["AuditLog"]] = relationship(
+        "AuditLog",
+        back_populates="actor"
     )
 
     def __repr__(self) -> str:
