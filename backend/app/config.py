@@ -48,8 +48,14 @@ class Settings(BaseSettings):
     log_level: Literal['DEBUG', "INFO", "ERROR", "WARNING", "CRITICAL"] = "INFO"
 
     # Firebase — one of these will be set depending on environment
-    FIREBASE_SERVICE_ACCOUNT_PATH: str | None = None
-    FIREBASE_SERVICE_ACCOUNT_JSON: str | None = None
+    firebase_service_account_path: str | None = None
+    firebase_service_account_json: str | None = None
+
+    # REDIS
+    redis_url: str = "redis://localhost:6379"
+
+    # Exchange rates api key
+    exchange_rates_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

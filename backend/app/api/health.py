@@ -11,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies.get_db import get_db
 
+import redis.asyncio as aioredis
+
+from app.config import settings
+
 router = APIRouter()
 
 
@@ -39,6 +43,16 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         checks['database'] = 'ok'
     except Exception:
         checks['database'] = 'error'
+        overall = "degraded"
+    
+    # Check Redis
+    try:
+        r = aioredis.from_url(settings.redis_url)
+        await r.ping()
+        await r.close()
+        checks['redis'] = 'ok'
+    except Exception:
+        checks['redis'] = 'error'
         overall = "degraded"
 
     status_code = 200 if overall == 'healthy' else 503
