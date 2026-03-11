@@ -1,3 +1,4 @@
+# app/config.py
 """Application configuration management.
 
 This module defines application settings using Pydantic for environment
@@ -5,7 +6,7 @@ variable validation and type safety. Configuration is loaded from .env file.
 """
 
 from enum import Enum
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -56,6 +57,13 @@ class Settings(BaseSettings):
 
     # Exchange rates api key
     exchange_rates_api_key: str = ""
+
+    # Flutterwave
+    flutterwave_secret_key: str = ""
+    flutterwave_public_key: str = ""  # You'll need this for frontend integration later
+    flutterwave_base_url: str = "https://api.flutterwave.com/v3"
+    flutterwave_webhook_secret: str = ""
+    frontend_url: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
