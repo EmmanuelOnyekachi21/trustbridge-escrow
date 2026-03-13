@@ -98,3 +98,7 @@ yarn-error.log
 
 # Test files
 test_*.log
+
+# Un-important files
+debug_*.py
+get_test_token.py

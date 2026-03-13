@@ -7,7 +7,7 @@ buyers and vendors with full audit trail support.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 
@@ -67,6 +67,12 @@ class Transaction(Base):
             unique=True,
             postgresql_where=Text('flutterwave_tx_id IS NOT NULL')
         ),
+        Index(
+            "ix_transactions_status_payment_expiry"
+            "status",
+            "payment_link_expires_at",
+            postgresql_where=Text('payment_link_expires_at IS NOT NULL')
+        )
     )
     
     # Primary key
@@ -201,6 +207,10 @@ class Transaction(Base):
     # Payment Tracking
     payment_link: Mapped[Optional[str]] = mapped_column(
         String(500),
+        nullable=True
+    )
+    payment_link_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
         nullable=True
     )
     flutterwave_tx_id: Mapped[Optional[str]] = mapped_column(

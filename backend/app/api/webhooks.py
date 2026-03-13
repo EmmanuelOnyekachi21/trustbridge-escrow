@@ -25,6 +25,8 @@ from app.services.flutter_wave import (
     FlutterwaveVerificationError,
 )
 
+from app.dependencies.get_flutterwave import get_flutterwave_service
+
 router = APIRouter()
 logger = get_logger(__name__)
 
@@ -45,7 +47,8 @@ def verify_flutterwave_signature(signature: str, secret: str) -> bool:
 @router.post('/flutterwave')
 async def flutterwave_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    flutterwave_service: FlutterWaveService = Depends(get_flutterwave_service)
 ):
     """Handle Flutterwave payment webhooks.
 
@@ -134,7 +137,6 @@ async def flutterwave_webhook(
         }
 
     # Verify payment with Flutterwave API
-    flutterwave_service = FlutterWaveService()
     try:
         verified_data = await flutterwave_service.verify_payment(tx_ref)
         logger.info(

@@ -4,9 +4,10 @@ This module provides endpoints for creating and managing escrow transactions
 including payment initiation.
 """
 
-import random
+# import random
+import secrets
 import string
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -25,6 +26,15 @@ from app.schemas.transactions import (
     TransactionCreateRequest,
     TransactionResponse,
 )
+
+from app.services.flutter_wave import FlutterWaveService, FlutterwavePaymentError
+from app.config import settings
+from sqlalchemy import update
+from app.logging import get_logger
+
+from app.config import settings
+
+from app.dependencies.get_flutterwave import get_flutterwave_service
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -132,10 +142,9 @@ async def generate_transaction_reference(db: AsyncSession) -> str:
     max_retries = 10
 
     for attempt in range(max_retries):
-        date_part = datetime.utcnow().strftime("%Y%m%d")
+        date_part = datetime.now(timezone.utc).strftime("%Y%m%d")
         # Generate 6 random chars (A-Z, 0-9)
-        chars = string.ascii_uppercase + string.digits
-        random_part = ''.join(random.choices(chars, k=6))
+        random_part = secrets.token_hex(3).upper()
         reference = f"TB-{date_part}-{random_part}"
 
         stmt = select(Transaction).where(Transaction.reference == reference)
@@ -154,7 +163,8 @@ async def generate_transaction_reference(db: AsyncSession) -> str:
 async def pay_transaction(
     transaction_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    flutterwave_service: FlutterWaveService = Depends(get_flutterwave_service)
 ):
     """
     Initiate payment for a transaction.
@@ -163,14 +173,6 @@ async def pay_transaction(
     Returns Flutterwave checkout URL. Idempotent - calling twice
     returns the same URL without createing duplcate charges.
     """
-    from app.services.flutter_wave import FlutterWaveService, FlutterwavePaymentError
-    from app.config import settings
-    from sqlalchemy import update
-    from app.logging import get_logger    
-    
-    logger = get_logger(__name__)
-
-
     # Checking if transaction ID already exists
     stmt = (
         select(Transaction)
@@ -186,117 +188,6 @@ async def pay_transaction(
             status_code=400,
             detail="Transaction ID does not exist"
         )
-    else:
-               
-        # Check state of transaction ID
-        if transaction.status != TransactionStatus.PENDING:
-            raise HTTPException(
-                status_code=400,
-                detail="Transaction already funded or released"
-            )
-        
-        # Check if current user is the buyer
-        if transaction.buyer_id != current_user.id:
-            raise HTTPException(
-                status_code=403,
-                detail="Only the buyer can initiate payment"
-            )
-        
-        # Idempotency check: if flutterwave_tx_id exists, payment already initiated
-        if transaction.payment_link:
-            return PaymentInitiationResponse(
-                transaction_id=transaction.id,
-                payment_link=transaction.payment_link,
-                message="Payment already initiated"
-            )
-        
-        flutterwave_service = FlutterWaveService()
-
-        # build redirect URL (where Flutterwave sends user after payment)
-        frontend_url = f"{settings.frontend_url}/transactions/{transaction.id}/confirm"
-
-        try:
-            payment_link = await flutterwave_service.initiate_payment(
-                transaction=transaction,
-                user=current_user,
-                redirect_url=frontend_url
-            )
-            logger.info(f"Payment initiated for {transaction.reference}")
-        except FlutterwavePaymentError as e:
-            logger.error(f"Failed to initiate payment: {e}")
-            raise HTTPException(500, "Failed to initiate payment. Please try again.")
-
-
-        stmt = (
-            update(Transaction)
-            .where(Transaction.id == transaction_id)
-            .values(
-                payment_link=payment_link
-            )
-        )
-        result = await db.execute(stmt)
-        await db.commit()
-        await db.refresh(transaction)
-
-        return PaymentInitiationResponse(
-            transaction_id=transaction.id,
-            payment_link=payment_link,
-            message="Payment initiated successfully"
-        )
-
-
-    
-    
-
-
-
-@router.post("/{transaction_id}/pay", response_model=PaymentInitiationResponse)
-async def pay_transaction(
-    transaction_id: UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Initiate payment for a transaction.
-
-    This endpoint integrates with Flutterwave payment provider to generate
-    a checkout URL. Idempotent - calling twice returns the same URL without
-    creating duplicate charges.
-
-    Args:
-        transaction_id: UUID of the transaction to pay for.
-        db: Database session from dependency injection.
-        current_user: Authenticated user from dependency injection.
-
-    Returns:
-        PaymentInitiationResponse with payment link and message.
-
-    Raises:
-        HTTPException: 400 if transaction not found or invalid state.
-        HTTPException: 403 if user is not the buyer.
-        HTTPException: 500 if payment initiation fails.
-    """
-    from app.config import settings
-    from app.services.flutter_wave import (
-        FlutterWaveService,
-        FlutterwavePaymentError,
-    )
-    from sqlalchemy import update
-
-    # Check if transaction ID already exists
-    stmt = (
-        select(Transaction)
-        .where(Transaction.id == transaction_id)
-        .with_for_update()
-    )
-    result = await db.execute(stmt)
-
-    transaction = result.scalar_one_or_none()
-
-    if transaction is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Transaction ID does not exist"
-        )
 
     # Check state of transaction ID
     if transaction.status != TransactionStatus.PENDING:
@@ -304,28 +195,27 @@ async def pay_transaction(
             status_code=400,
             detail="Transaction already funded or released"
         )
-
+    
     # Check if current user is the buyer
     if transaction.buyer_id != current_user.id:
         raise HTTPException(
             status_code=403,
             detail="Only the buyer can initiate payment"
         )
+    
+    # Idempotency check: if payment_link already exists, payment already initiated
+    if transaction.payment_link and transaction.payment_link_expires_at:
+        now = datetime.now(timezone.utc)
 
-    # Idempotency check: if payment_link exists, payment already initiated
-    if transaction.payment_link:
-        return PaymentInitiationResponse(
-            transaction_id=transaction.id,
-            payment_link=transaction.payment_link,
-            message="Payment already initiated"
-        )
+        if transaction.payment_link_expires_at > now:
+            return PaymentInitiationResponse(
+                transaction_id=transaction.id,
+                payment_link=transaction.payment_link,
+                message="Payment already initiated"
+            )
 
-    flutterwave_service = FlutterWaveService()
-
-    # Build redirect URL (where Flutterwave sends user after payment)
-    frontend_url = (
-        f"{settings.frontend_url}/transactions/{transaction.id}/confirm"
-    )
+    # build redirect URL (where Flutterwave sends user after payment)
+    frontend_url = f"{settings.frontend_url}/transactions/{transaction.id}/confirm"
 
     try:
         payment_link = await flutterwave_service.initiate_payment(
@@ -337,13 +227,37 @@ async def pay_transaction(
     except FlutterwavePaymentError as e:
         logger.error(f"Failed to initiate payment: {e}")
         raise HTTPException(500, "Failed to initiate payment. Please try again.")
-
+    
+    # Set expiration time (30 minutes from now)
+    from datetime import timedelta
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=30)
+    
+    # Update transaction with payment link and expiration
     stmt = (
         update(Transaction)
         .where(Transaction.id == transaction_id)
-        .values(payment_link=payment_link)
+        .values(
+            payment_link=payment_link,
+            payment_link_expires_at=expires_at
+        )
     )
-    await db.execute(stmt)
+    result = await db.execute(stmt)
+    
+    # Audit log after successful payment link generation
+    audit_log = AuditLog(
+        transaction_id=transaction.id,
+        actor_id=current_user.id,
+        action="transaction.payment_initialized",
+        extra_data={
+            "reference": transaction.reference,
+            "amount": str(transaction.amount),
+            "currency": transaction.currency.value,
+            "payment_link": payment_link,
+            "expires_at": expires_at.isoformat()
+        }
+    )
+    db.add(audit_log)
+    
     await db.commit()
     await db.refresh(transaction)
 

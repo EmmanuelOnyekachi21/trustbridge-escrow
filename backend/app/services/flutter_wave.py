@@ -42,10 +42,10 @@ class FlutterWaveService:
     and logging.
     """
 
-    def __init__(self):
+    def __init__(self, base_url: str, secret_key: str):
         """Initialize Flutterwave service with API credentials."""
-        self.base_url = settings.flutterwave_base_url
-        self.secret_key = settings.flutterwave_secret_key
+        self.base_url = base_url
+        self.secret_key = secret_key
         self.headers = {
             "Authorization": f"Bearer {self.secret_key}",
             "Content-Type": "application/json"
