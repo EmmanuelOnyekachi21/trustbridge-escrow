@@ -1,3 +1,4 @@
+# app/main.py
 """TrustBridge FastAPI application entry point.
 
 This module initializes the FastAPI application with middleware, logging,
@@ -18,7 +19,7 @@ from app.middleware.logging import RequestTracingMiddleware
 
 from app.core.firebase import _initialize_firebase
 
-from app.api import auth, currency
+from app.api import auth, currency, transactions, users, webhooks
 
 from app.services.currency import CurrencyRateService
 
@@ -89,4 +90,19 @@ app.add_middleware(RequestTracingMiddleware)
 app.include_router(health.router)
 app.include_router(auth.router, prefix='/auth')
 app.include_router(currency.router)
+app.include_router(
+    transactions.router,
+    prefix='/transactions',
+    tags=["transactions"]
+)
+app.include_router(
+    users.router,
+    prefix='/users',
+    tags=["users"]
+)
+app.include_router(
+    webhooks.router,
+    prefix="/webhooks",
+    tags=["webhooks"]
+)
 

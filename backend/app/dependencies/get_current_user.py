@@ -10,8 +10,10 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from firebase_admin import auth
 from firebase_admin.auth import ExpiredIdTokenError, InvalidIdTokenError
-from sqlalchemy import insert, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from sqlalchemy.dialects.postgresql import insert
 
 from app.dependencies.get_db import get_db
 from app.logging import get_logger

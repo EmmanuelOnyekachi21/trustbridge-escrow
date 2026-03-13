@@ -1,3 +1,4 @@
+# app/modles/transactions.py
 """Transaction database model.
 
 This module defines the Transaction model which represents escrow transactions
@@ -6,11 +7,11 @@ buyers and vendors with full audit trail support.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -57,6 +58,22 @@ class Transaction(Base):
     """
 
     __tablename__ = "transactions"
+    
+    # Unique index on flutterwave_tx_id for idempotency (partial index excludes nulls)
+    __table_args__ = (
+        Index(
+            'ix_transactions_flutterwave_tx_id_unique',
+            'flutterwave_tx_id',
+            unique=True,
+            postgresql_where=Text('flutterwave_tx_id IS NOT NULL')
+        ),
+        Index(
+            "ix_transactions_status_payment_expiry"
+            "status",
+            "payment_link_expires_at",
+            postgresql_where=Text('payment_link_expires_at IS NOT NULL')
+        )
+    )
     
     # Primary key
     id: Mapped[uuid.UUID] = mapped_column(
@@ -185,6 +202,21 @@ class Transaction(Base):
     audit_logs: Mapped[List["AuditLog"]] = relationship(
         "AuditLog",
         back_populates="transaction"
+    )
+
+    # Payment Tracking
+    payment_link: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True
+    )
+    payment_link_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True
+    )
+    flutterwave_tx_id: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        index=True
     )
     
     def __repr__(self) -> str:

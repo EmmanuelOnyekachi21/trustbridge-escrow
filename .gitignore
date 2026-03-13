@@ -95,3 +95,10 @@ yarn-error.log
 *.bak
 *.swp
 .tmp/
+
+# Test files
+test_*.log
+
+# Un-important files
+debug_*.py
+get_test_token.py
